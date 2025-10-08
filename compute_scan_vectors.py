@@ -231,6 +231,12 @@ def compute_block(
     """
     assert kind in ("actual", "nominal")
 
+    # Spaltennamen werden nach dem Schema
+    #   {prefix}{kind}_{koordinate}_{seite}
+    # gebildet, z. B. "act_actual_j_R". Das bedeutet: tatsächlicher ("actual")
+    # j-Anteil ("_j_") des Normalenvektors der rechten Bahnseite ("_R") im
+    # Ergebnisblock für die aktuellen Werte ("act_").
+
     columns_order = [
         f"{prefix}{kind}_x_L",
         f"{prefix}{kind}_y_L",
@@ -252,6 +258,9 @@ def compute_block(
         f"{prefix}c_y",
         f"{prefix}c_z",
         f"{prefix}c_norm",
+        f"{prefix}c_i",
+        f"{prefix}c_j",
+        f"{prefix}c_k",
         f"{prefix}dot_c_d",
         f"{prefix}dot_n",
         f"{prefix}angle_n_deg",
@@ -264,6 +273,12 @@ def compute_block(
         f"{prefix}A_c",
         f"{prefix}B_c",
         f"{prefix}C_c",
+        f"{prefix}mid_i",
+        f"{prefix}mid_j",
+        f"{prefix}mid_k",
+        f"{prefix}A_mid",
+        f"{prefix}B_mid",
+        f"{prefix}C_mid",
     ]
 
     result_rows: List[Dict[str, float]] = []
@@ -310,22 +325,66 @@ def compute_block(
             c_norm = math.nan
             dot_c_d = math.nan
             dot_n = math.nan
+            c_unit = (math.nan, math.nan, math.nan)
+            mid_vec_unit = (math.nan, math.nan, math.nan)
         else:
             c_vec = vector_cross(nR_normed, nL_normed)
             c_norm = vector_norm(c_vec)
             dot_c_d = vector_dot(c_vec, d_vec)
             dot_n = max(-1.0, min(1.0, vector_dot(nR_normed, nL_normed)))
 
+            if math.isfinite(c_norm) and c_norm > 1e-12:
+                c_unit = (
+                    c_vec[0] / c_norm,
+                    c_vec[1] / c_norm,
+                    c_vec[2] / c_norm,
+                )
+            else:
+                c_unit = (math.nan, math.nan, math.nan)
+
+            # Vermittelte Normalenrichtung im Zwischenpunkt: 
+            # Verwende das Kreuzprodukt (d_vec × c_vec), das in der Ebene der 
+            # Originalnormalen liegt. Falls degeneriert, greife auf die
+            # gemittelte Normalenrichtung zurück.
+            if (
+                math.isfinite(d_norm)
+                and d_norm > 1e-12
+                and math.isfinite(c_norm)
+                and c_norm > 1e-12
+            ):
+                mid_candidate = vector_cross(d_vec, c_vec)
+            else:
+                mid_candidate = (
+                    nL_normed[0] + nR_normed[0],
+                    nL_normed[1] + nR_normed[1],
+                    nL_normed[2] + nR_normed[2],
+                )
+
+            mid_vec_unit, mid_candidate_norm = normalize_vector(mid_candidate)
+            if not math.isfinite(mid_candidate_norm) or mid_candidate_norm < 1e-12:
+                mid_vec_unit = (math.nan, math.nan, math.nan)
+    
         angle_n_deg = math.degrees(math.acos(dot_n)) if math.isfinite(dot_n) else math.nan
 
         A_L, B_L, C_L = vector_to_abc(nL_normed) if math.isfinite(nL_norm) and nL_norm >= 1e-12 else (math.nan, math.nan, math.nan)
         A_R, B_R, C_R = vector_to_abc(nR_normed) if math.isfinite(nR_norm) and nR_norm >= 1e-12 else (math.nan, math.nan, math.nan)
 
-        if math.isfinite(c_norm) and c_norm > 1e-12 and all(math.isfinite(v) for v in c_vec):
-            c_unit = (c_vec[0] / c_norm, c_vec[1] / c_norm, c_vec[2] / c_norm)
-            A_c, B_c, C_c = vector_to_abc(c_unit)
+        if (
+            math.isfinite(c_norm)
+            and c_norm > 1e-12
+            and all(math.isfinite(v) for v in c_vec)
+        ):
+            if any(math.isnan(component) for component in c_unit):
+                A_c, B_c, C_c = (math.nan, math.nan, math.nan)
+            else:
+                A_c, B_c, C_c = vector_to_abc(c_unit)
         else:
             A_c, B_c, C_c = (math.nan, math.nan, math.nan)
+
+        if all(math.isfinite(v) for v in mid_vec_unit):
+            A_mid, B_mid, C_mid = vector_to_abc(mid_vec_unit)
+        else:
+            A_mid, B_mid, C_mid = (math.nan, math.nan, math.nan)
 
         result_rows.append(
             {
@@ -349,6 +408,9 @@ def compute_block(
                 f"{prefix}c_y": c_vec[1],
                 f"{prefix}c_z": c_vec[2],
                 f"{prefix}c_norm": c_norm,
+                f"{prefix}c_i": c_unit[0],
+                f"{prefix}c_j": c_unit[1],
+                f"{prefix}c_k": c_unit[2],
                 f"{prefix}dot_c_d": dot_c_d,
                 f"{prefix}dot_n": dot_n,
                 f"{prefix}angle_n_deg": angle_n_deg,
@@ -361,6 +423,12 @@ def compute_block(
                 f"{prefix}A_c": A_c,
                 f"{prefix}B_c": B_c,
                 f"{prefix}C_c": C_c,
+                f"{prefix}mid_i": mid_vec_unit[0],
+                f"{prefix}mid_j": mid_vec_unit[1],
+                f"{prefix}mid_k": mid_vec_unit[2],
+                f"{prefix}A_mid": A_mid,
+                f"{prefix}B_mid": B_mid,
+                f"{prefix}C_mid": C_mid,
             }
         )
 
@@ -467,39 +535,57 @@ def main() -> None:
     simple_fieldnames = ["index"]
 
     def collect_simple_keys(kind: str, prefix: str) -> List[str]:
-        keys = [
-            f"{prefix}d_x",
-            f"{prefix}d_y",
-            f"{prefix}d_z",
-            f"{prefix}c_x",
-            f"{prefix}c_y",
-            f"{prefix}c_z",
-            f"{prefix}dot_c_d",
-            f"{prefix}dot_n",
-            f"{prefix}A_L",
-            f"{prefix}B_L",
-            f"{prefix}C_L",
-            f"{prefix}A_R",
-            f"{prefix}B_R",
-            f"{prefix}C_R",
-            f"{prefix}A_c",
-            f"{prefix}B_c",
-            f"{prefix}C_c",
-        ]
-        vec_key = "actual" if kind == "actual" else "nominal"
+        """Ermittelt die Spalten für die vereinfachte CSV."""
+
+        if kind != "actual":
+            return []
+
+        keys: List[str] = []
         for side in ("L", "R"):
             keys.extend(
                 [
-                    f"{prefix}{vec_key}_i_{side}",
-                    f"{prefix}{vec_key}_j_{side}",
-                    f"{prefix}{vec_key}_k_{side}",
+                    f"{prefix}{kind}_i_{side}",
+                    f"{prefix}{kind}_j_{side}",
+                    f"{prefix}{kind}_k_{side}",
                 ]
             )
+
+        keys.extend(
+            [
+                f"{prefix}c_i",
+                f"{prefix}c_j",
+                f"{prefix}c_k",
+                f"{prefix}mid_i",
+                f"{prefix}mid_j",
+                f"{prefix}mid_k",
+                f"{prefix}dot_n",
+                f"{prefix}angle_n_deg",
+                f"{prefix}A_L",
+                f"{prefix}B_L",
+                f"{prefix}C_L",
+                f"{prefix}A_R",
+                f"{prefix}B_R",
+                f"{prefix}C_R",
+                f"{prefix}A_c",
+                f"{prefix}B_c",
+                f"{prefix}C_c",
+                f"{prefix}A_mid",
+                f"{prefix}B_mid",
+                f"{prefix}C_mid",
+            ]
+        )
+
         return keys
 
     for kind, prefix, _, _ in blocks:
         simple_keys = collect_simple_keys(kind, prefix)
-        simple_fieldnames.extend(simple_keys)
+        if simple_keys:
+            simple_fieldnames.extend(simple_keys)
+
+    if len(simple_fieldnames) == 1:
+        logging.info(
+            "Keine ACTUAL-Daten vorhanden – die vereinfachte Datei enthält nur den Index."
+        )
 
     logging.info(f"Schreibe vereinfachtes Ergebnis nach '{simple_path}' ...")
 
