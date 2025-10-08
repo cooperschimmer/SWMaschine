@@ -231,6 +231,12 @@ def compute_block(
     """
     assert kind in ("actual", "nominal")
 
+    # Spaltennamen werden nach dem Schema
+    #   {prefix}{kind}_{koordinate}_{seite}
+    # gebildet, z. B. "act_actual_j_R". Das bedeutet: tatsächlicher ("actual")
+    # j-Anteil ("_j_") des Normalenvektors der rechten Bahnseite ("_R") im
+    # Ergebnisblock für die aktuellen Werte ("act_").
+
     columns_order = [
         f"{prefix}{kind}_x_L",
         f"{prefix}{kind}_y_L",
@@ -467,39 +473,40 @@ def main() -> None:
     simple_fieldnames = ["index"]
 
     def collect_simple_keys(kind: str, prefix: str) -> List[str]:
-        keys = [
-            f"{prefix}d_x",
-            f"{prefix}d_y",
-            f"{prefix}d_z",
-            f"{prefix}c_x",
-            f"{prefix}c_y",
-            f"{prefix}c_z",
-            f"{prefix}dot_c_d",
-            f"{prefix}dot_n",
-            f"{prefix}A_L",
-            f"{prefix}B_L",
-            f"{prefix}C_L",
-            f"{prefix}A_R",
-            f"{prefix}B_R",
-            f"{prefix}C_R",
-            f"{prefix}A_c",
-            f"{prefix}B_c",
-            f"{prefix}C_c",
-        ]
-        vec_key = "actual" if kind == "actual" else "nominal"
+        """Ermittelt die Spalten für die vereinfachte CSV."""
+
+        if kind != "actual":
+            return []
+
+        keys: List[str] = []
         for side in ("L", "R"):
             keys.extend(
                 [
-                    f"{prefix}{vec_key}_i_{side}",
-                    f"{prefix}{vec_key}_j_{side}",
-                    f"{prefix}{vec_key}_k_{side}",
+                    f"{prefix}{kind}_i_{side}",
+                    f"{prefix}{kind}_j_{side}",
+                    f"{prefix}{kind}_k_{side}",
                 ]
             )
+
+        keys.extend(
+            [
+                f"{prefix}A_c",
+                f"{prefix}B_c",
+                f"{prefix}C_c",
+            ]
+        )
+
         return keys
 
     for kind, prefix, _, _ in blocks:
         simple_keys = collect_simple_keys(kind, prefix)
-        simple_fieldnames.extend(simple_keys)
+        if simple_keys:
+            simple_fieldnames.extend(simple_keys)
+
+    if len(simple_fieldnames) == 1:
+        logging.info(
+            "Keine ACTUAL-Daten vorhanden – die vereinfachte Datei enthält nur den Index."
+        )
 
     logging.info(f"Schreibe vereinfachtes Ergebnis nach '{simple_path}' ...")
 
