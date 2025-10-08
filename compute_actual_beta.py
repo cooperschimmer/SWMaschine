@@ -20,15 +20,21 @@ Punktkoordinaten, den Verbindungsvektor sowie zwei Winkel enthält:
 ``winkel_beta2_maschine``
     Ergänzungswinkel zu ``90°``. Dieser Wert ist hilfreich, wenn ein
     Steuerungssystem den Winkel relativ zur +X-Ausrichtung benötigt.
+
+``Mathematisches Vorgehen´´
+    Vektor der Punkte v-> = Pb (X Y Z)-Pa (X Y Z) = ( I J K)
+    Werkzeugachsen Vektor zur normalisierung z-> = ( 0 0 1)
+    Kreuzprodukt = n-> = v-> * z->
+    Skalarprodukt = (v-> * z->) / 
 """
 
-from __future__ import annotations
+#from __future__ import annotations
 
 import argparse
 import csv
 import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple, Union
 
 DEFAULT_LEFT = "Output_CSV_Li.csv"
 DEFAULT_RIGHT = "Output_CSV_Re.csv"
@@ -38,17 +44,17 @@ ACT_KEYS = ("ACT_X", "ACT_Y", "ACT_Z")
 
 
 class CsvFormatError(RuntimeError):
-    """Wird geworfen, wenn Pflichtspalten in einer Eingabedatei fehlen."""
+    """Wird ausgegeben, wenn Pflichtspalten in einer Eingabedatei fehlen."""
 
 
-def _resolve(path: str | Path) -> Path:
+def _resolve(path: Union[str, Path]) -> Path:
     p = Path(path)
     if not p.is_absolute():
         p = Path(__file__).resolve().parent / p
     return p
 
 
-def _read_points(path: str | Path) -> List[Dict[str, float]]:
+def _read_points(path: Union[str, Path]) -> List[Dict[str, float]]:
     file_path = _resolve(path)
     try:
         with file_path.open("r", encoding="utf-8", newline="") as handle:
@@ -127,7 +133,7 @@ def process(left: List[Dict[str, float]], right: List[Dict[str, float]]) -> List
     return results
 
 
-def _write_results(result_path: str | Path, rows: List[Dict[str, float]]) -> None:
+def _write_results(result_path: Union[str, Path], rows: List[Dict[str, float]]) -> None:
     path = _resolve(result_path)
     fieldnames = [
         "index",
