@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+# File:             compute_actual_vectors.py
+# Creation Date:    Oct 2025 (CS) -> Git repos
+# Version: V0.4 CS
+# Copyright 2018 Renishaw Plc. All rights reserved.
+# This software and related documentation are proprietary to Renishaw Plc.
+# Description:
 """Berechnet B-Achsen-Winkel basierend auf ACT-Punktdaten aus zwei CSV-Dateien.
 
 Dieses Skript liest zwei CSV-Dateien ein, die synchronisierte Punkte der linken
@@ -25,7 +30,7 @@ Punktkoordinaten, den Verbindungsvektor sowie zwei Winkel enthält:
     Vektor der Punkte v-> = Pb (X Y Z)-Pa (X Y Z) = ( I J K)
     Werkzeugachsen Vektor zur normalisierung z-> = ( 0 0 1)
     Kreuzprodukt = n-> = v-> * z->
-    Skalarprodukt = (v-> * z->) / 
+    Skalarprodukt = (v-> * z->) / (|v->| * |z->|) 
 """
 
 #from __future__ import annotations
