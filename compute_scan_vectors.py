@@ -18,7 +18,6 @@ Die Funktion vector_to_abc() bildet einen Richtungsvektor (angenommene Werkzeug-
 
 from __future__ import annotations
 
-import argparse
 import logging
 from typing import Tuple, Dict, List
 
@@ -26,29 +25,20 @@ import numpy as np
 import pandas as pd
 
 
-# --------------------------- Utility / Parsing ---------------------------
+# --------------------------- Konfiguration ---------------------------
+
+# Standard-Pfade/-Einstellungen (können bei Bedarf zentral angepasst werden)
+LEFT_CSV_PATH = "Output_CSV_Li.csv"
+RIGHT_CSV_PATH = "Output_CSV_Re.csv"
+RESULT_CSV_PATH = "results.csv"
+USE_MODE = "both"  # "actual", "nominal" oder "both"
 
 REQUIRED_COLS = [
     "actual_x", "actual_y", "actual_z",
     "nominal_x", "nominal_y", "nominal_z",
     "actual_i", "actual_j", "actual_k",
-    "nominal_i", "nominal_j", "nominal_k", ]
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Berechnet Kreuz-/Skalarprodukte und generische ABC-Winkel aus linken/rechten Scan-Bahnen."
-    )
-    parser.add_argument("--left", required=True, help="Pfad zur linken CSV (z. B. output.csv-Links)")
-    parser.add_argument("--right", required=True, help="Pfad zur rechten CSV (z. B. output.csv-Rechts)")
-    parser.add_argument("--out", default="results.csv", help="Pfad zur Ergebnis-CSV (default: results.csv)")
-    parser.add_argument("--use", choices=["actual", "nominal", "both"], default="actual",
-                        help="Welche Werte verwendet werden: actual, nominal oder both (default: actual)")
-    parser.add_argument("--delimiter", default=",", help="CSV-Trennzeichen (default: ',')")
-    parser.add_argument("--encoding", default="utf-8", help="Encoding (default: utf-8)")
-    parser.add_argument("--decimal", default=".", help="Dezimaltrennzeichen in Eingabe (default: '.')")
-    parser.add_argument("--log", default="INFO", help="Logging-Level (DEBUG/INFO/WARN/ERROR, default: INFO)")
-    return parser.parse_args()
+    "nominal_i", "nominal_j", "nominal_k",
+]
 
 
 def setup_logging(level: str) -> None:
@@ -59,12 +49,33 @@ def setup_logging(level: str) -> None:
     )
 
 
-def read_csv_checked(path: str, delimiter: str, encoding: str, decimal: str) -> pd.DataFrame:
+def read_csv_checked(path: str) -> pd.DataFrame:
+    """Liest eine CSV-Datei ein und bringt die Spaltennamen auf das erwartete Schema."""
+
+    rename_map: Dict[str, str] = {
+        "NOM_X": "nominal_x",
+        "NOM_Y": "nominal_y",
+        "NOM_Z": "nominal_z",
+        "ACT_X": "actual_x",
+        "ACT_Y": "actual_y",
+        "ACT_Z": "actual_z",
+        "NOM_I": "nominal_i",
+        "NOM_J": "nominal_j",
+        "NOM_K": "nominal_k",
+        "ACT_I": "actual_i",
+        "ACT_J": "actual_j",
+        "ACT_K": "actual_k",
+    }
+
     try:
-        df = pd.read_csv(path, sep=delimiter, encoding=encoding, decimal=decimal)
+        df = pd.read_csv(path, sep=",", decimal=".", encoding="utf-8", skipinitialspace=True)
     except Exception as e:
         logging.error(f"Fehler beim Einlesen der CSV '{path}': {e}")
         raise
+
+    # Whitespace entfernen und gewünschte Namen zuordnen
+    df.columns = df.columns.str.strip()
+    df = df.rename(columns=rename_map)
 
     missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:
@@ -258,12 +269,11 @@ def compute_block(dfL: pd.DataFrame, dfR: pd.DataFrame, kind: str, prefix: str) 
 
 
 def main() -> None:
-    args = parse_args()
-    setup_logging(args.log)
+    setup_logging("INFO")
 
     logging.info("Einlesen der CSV-Dateien ...")
-    dfL_raw = read_csv_checked(args.left, args.delimiter, args.encoding, args.decimal)
-    dfR_raw = read_csv_checked(args.right, args.delimiter, args.encoding, args.decimal)
+    dfL_raw = read_csv_checked(LEFT_CSV_PATH)
+    dfR_raw = read_csv_checked(RIGHT_CSV_PATH)
 
     if len(dfL_raw) != len(dfR_raw):
         raise ValueError(f"Unterschiedliche Zeilenzahl: left={len(dfL_raw)} vs right={len(dfR_raw)}")
@@ -277,15 +287,18 @@ def main() -> None:
 
     result_blocks: List[pd.DataFrame] = []
 
-    if args.use in ("actual", "both"):
+    if USE_MODE in ("actual", "both"):
         logging.info("Berechne Block: ACTUAL")
-        block_act = compute_block(dfL, dfR, kind="actual", prefix="act_" if args.use == "both" else "")
+        block_act = compute_block(dfL, dfR, kind="actual", prefix="act_" if USE_MODE == "both" else "")
         result_blocks.append(block_act)
 
-    if args.use in ("nominal", "both"):
+    if USE_MODE in ("nominal", "both"):
         logging.info("Berechne Block: NOMINAL")
-        block_nom = compute_block(dfL, dfR, kind="nominal", prefix="nom_" if args.use == "both" else "")
+        block_nom = compute_block(dfL, dfR, kind="nominal", prefix="nom_" if USE_MODE == "both" else "")
         result_blocks.append(block_nom)
+
+    if not result_blocks:
+        raise ValueError("USE_MODE muss 'actual', 'nominal' oder 'both' sein.")
 
     # Zusammenführen
     result_df = pd.concat([index_series] + result_blocks, axis=1)
@@ -297,9 +310,9 @@ def main() -> None:
         result_df = result_df[cols]
 
     # Schreiben
-    logging.info(f"Schreibe Ergebnis nach '{args.out}' ...")
+    logging.info(f"Schreibe Ergebnis nach '{RESULT_CSV_PATH}' ...")
     try:
-        result_df.to_csv(args.out, sep=args.delimiter, encoding=args.encoding, index=False)
+        result_df.to_csv(RESULT_CSV_PATH, sep=",", encoding="utf-8", index=False)
     except Exception as e:
         logging.error(f"Fehler beim Schreiben der Ergebnis-CSV: {e}")
         raise
