@@ -60,23 +60,20 @@ def compute_outward_point(x, y, x0, y0, offset_mm):
     return float(out_xy[0]), float(out_xy[1])
 
 
-ORIGINAL_X_POSITIONS_PER_FILE = {}
-NEW_X_POSITIONS_PER_FILE = {}
-NEW_XY_POSITIONS_PER_FILE = {}
 LAST_RUN_SUMMARY = []
 
 # Globale Variablen für die neuen Positionen der Innen- (ID) und Außendurchmesser (AD)
 # werden am Ende des Skriptlaufs gefüllt. Sie sind standardmäßig auf None gesetzt und
 # werden – sofern möglich – mit Float-Werten überschrieben.
-OUTER_DIAMETER_NEW_X_MAX = None
-OUTER_DIAMETER_NEW_Y_MAX = None
-OUTER_DIAMETER_NEW_X_MIN = None
-OUTER_DIAMETER_NEW_Y_MIN = None
+AD_NEW_X_MAX = None
+AD_NEW_Y_MAX = None
+AD_NEW_X_MIN = None
+AD_NEW_Y_MIN = None
 
-INNER_DIAMETER_NEW_X_MAX = None
-INNER_DIAMETER_NEW_Y_MAX = None
-INNER_DIAMETER_NEW_X_MIN = None
-INNER_DIAMETER_NEW_Y_MIN = None
+ID_NEW_X_MAX = None
+ID_NEW_Y_MAX = None
+ID_NEW_X_MIN = None
+ID_NEW_Y_MIN = None
 
 
 def process_file(csv_path: str, out_csv: str):
@@ -144,25 +141,13 @@ def process_file(csv_path: str, out_csv: str):
     print(f"\nErgebnis gespeichert: {out_path}")
     print("\n" + "-" * 60 + "\n")
 
-    ORIGINAL_X_POSITIONS_PER_FILE[csv_path] = {
-        "MAT_MAX_ABS": x_max,
-        "MAT_MIN_ABS": x_min,
-    }
-    NEW_X_POSITIONS_PER_FILE[csv_path] = {
-        "MAT_MAX_ABS": x_max_out,
-        "MAT_MIN_ABS": x_min_out,
-    }
-    NEW_XY_POSITIONS_PER_FILE[csv_path] = {
-        "MAT_MAX_ABS": (x_max_out, y_max_out),
-        "MAT_MIN_ABS": (x_min_out, y_min_out),
-    }
-
     return {
         "csv_path": csv_path,
         "output_csv": str(out_path),
-        "original_x": ORIGINAL_X_POSITIONS_PER_FILE[csv_path],
-        "new_x": NEW_X_POSITIONS_PER_FILE[csv_path],
-        "new_xy": NEW_XY_POSITIONS_PER_FILE[csv_path],
+        "new_xy": {
+            "MAT_MAX_ABS": (x_max_out, y_max_out),
+            "MAT_MIN_ABS": (x_min_out, y_min_out),
+        },
     }
 
 
@@ -189,18 +174,17 @@ if __name__ == "__main__":
         csv_name = Path(csv_path).name.lower()
         new_xy = entry.get("new_xy", {})
 
-        def assign_values(prefix):
-            max_xy = new_xy.get("MAT_MAX_ABS")
-            min_xy = new_xy.get("MAT_MIN_ABS")
-
-            if max_xy is not None:
-                globals()[f"{prefix}_NEW_X_MAX"] = float(max_xy[0])
-                globals()[f"{prefix}_NEW_Y_MAX"] = float(max_xy[1])
-            if min_xy is not None:
-                globals()[f"{prefix}_NEW_X_MIN"] = float(min_xy[0])
-                globals()[f"{prefix}_NEW_Y_MIN"] = float(min_xy[1])
+        max_xy = new_xy.get("MAT_MAX_ABS")
+        min_xy = new_xy.get("MAT_MIN_ABS")
 
         if any(token in csv_name for token in ("ad", "outer", "aussen", "außen")):
-            assign_values("OUTER_DIAMETER")
+            if max_xy is not None:
+                AD_NEW_X_MAX, AD_NEW_Y_MAX = map(float, max_xy)
+            if min_xy is not None:
+                AD_NEW_X_MIN, AD_NEW_Y_MIN = map(float, min_xy)
+
         if any(token in csv_name for token in ("id", "inner", "innen")):
-            assign_values("INNER_DIAMETER")
+            if max_xy is not None:
+                ID_NEW_X_MAX, ID_NEW_Y_MAX = map(float, max_xy)
+            if min_xy is not None:
+                ID_NEW_X_MIN, ID_NEW_Y_MIN = map(float, min_xy)
