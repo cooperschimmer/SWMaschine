@@ -1,0 +1,3 @@
+Fall,X,Y,MAT,X0,Y0,X_out_5mm,Y_out_5mm,Hinweis
+MAT_MAX,-40.95214,-16.19471,0.04073,0.0,0.0,-45.601775528323316,-18.033429514704064,"Outward = weg von (X0,Y0) entlang der Linie durch (X,Y)"
+MAT_MIN,41.05082,14.71461,-0.39146,0.0,0.0,45.757579726173326,16.401741553872668,"Outward = weg von (X0,Y0) entlang der Linie durch (X,Y)"
