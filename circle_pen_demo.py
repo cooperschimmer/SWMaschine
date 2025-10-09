@@ -65,6 +65,19 @@ NEW_X_POSITIONS_PER_FILE = {}
 NEW_XY_POSITIONS_PER_FILE = {}
 LAST_RUN_SUMMARY = []
 
+# Globale Variablen für die neuen Positionen der Innen- (ID) und Außendurchmesser (AD)
+# werden am Ende des Skriptlaufs gefüllt. Sie sind standardmäßig auf None gesetzt und
+# werden – sofern möglich – mit Float-Werten überschrieben.
+OUTER_DIAMETER_NEW_X_MAX = None
+OUTER_DIAMETER_NEW_Y_MAX = None
+OUTER_DIAMETER_NEW_X_MIN = None
+OUTER_DIAMETER_NEW_Y_MIN = None
+
+INNER_DIAMETER_NEW_X_MAX = None
+INNER_DIAMETER_NEW_Y_MAX = None
+INNER_DIAMETER_NEW_X_MIN = None
+INNER_DIAMETER_NEW_Y_MIN = None
+
 
 def process_file(csv_path: str, out_csv: str):
     df = load_csv_hardcoded(csv_path)
@@ -170,3 +183,24 @@ def main():
 
 if __name__ == "__main__":
     LAST_RUN_SUMMARY = main()
+    # Nach dem Lauf globale Variablen für Innen- und Außendurchmesser aktualisieren.
+    for entry in LAST_RUN_SUMMARY:
+        csv_path = entry.get("csv_path", "")
+        csv_name = Path(csv_path).name.lower()
+        new_xy = entry.get("new_xy", {})
+
+        def assign_values(prefix):
+            max_xy = new_xy.get("MAT_MAX_ABS")
+            min_xy = new_xy.get("MAT_MIN_ABS")
+
+            if max_xy is not None:
+                globals()[f"{prefix}_NEW_X_MAX"] = float(max_xy[0])
+                globals()[f"{prefix}_NEW_Y_MAX"] = float(max_xy[1])
+            if min_xy is not None:
+                globals()[f"{prefix}_NEW_X_MIN"] = float(min_xy[0])
+                globals()[f"{prefix}_NEW_Y_MIN"] = float(min_xy[1])
+
+        if any(token in csv_name for token in ("ad", "outer", "aussen", "außen")):
+            assign_values("OUTER_DIAMETER")
+        if any(token in csv_name for token in ("id", "inner", "innen")):
+            assign_values("INNER_DIAMETER")
