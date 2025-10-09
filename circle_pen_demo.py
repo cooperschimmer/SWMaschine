@@ -8,16 +8,19 @@ Hart-kodiertes Skript:
 - Von XY0 aus jeweils 5 mm radial nach außen verschieben
 - Neue Koordinaten anzeigen und als CSV speichern 
 """
-import os
-import pandas as pd
-import numpy as np
+import sys
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 # ======= HIER EINSTELLEN =======
-CSV_PATH = "AD.csv"   # <--- Pfad zu deiner CSV fest eintragen
+CSV_PATHS = [  # <--- Pfade zu deinen CSVs eintragen
+    ("AD.csv", "result_AD.csv"),
+    ("ID.csv", "result_ID.csv"),
+]
 XY0 = (0.0, 0.0)                       # <--- Mittelpunkt des Kreises (x0, y0) in mm
 RADIAL_OFFSET_MM = 5.0                 # Abstand nach außen in mm
-OUT_CSV = "result.csv"
 # =================================
 
 
@@ -57,8 +60,8 @@ def compute_outward_point(x, y, x0, y0, offset_mm):
     return float(out_xy[0]), float(out_xy[1])
 
 
-def main():
-    df = load_csv_hardcoded(CSV_PATH)
+def process_file(csv_path: str, out_csv: str):
+    df = load_csv_hardcoded(csv_path)
 
     # Spalten auflösen
     mat_col = find_col(df, ["mat", "materialaufmass", "materialaufmaß", "aufmass", "aufmaß","mATERIALCONDITION mat"])
@@ -73,14 +76,15 @@ def main():
         print("Fehler: Keine gültigen numerischen Werte in X/Y/MAT gefunden.", file=sys.stderr)
         sys.exit(2)
 
-    # Max/Min MAT
-    idx_max = dfn[mat_col].idxmax()
-    idx_min = dfn[mat_col].idxmin()
+    # Max/Min MAT (Vorzeichen-unabhängig)
+    abs_mat = dfn[mat_col].abs()
+    idx_max = abs_mat.idxmax()
+    idx_min = abs_mat.idxmin()
     row_max = dfn.loc[idx_max].copy()
     row_min = dfn.loc[idx_min].copy()
 
     # Ergebnisse (Originalzeilen) ausgeben
-    print("=== Originalzeilen ===")
+    print(f"=== Originalzeilen ({csv_path}) ===")
     print("-- MAT_MAX --")
     print(row_max.to_string())
     print("\n-- MAT_MIN --")
@@ -98,8 +102,8 @@ def main():
     # Zusammenfassungstabelle
     results_rows = []
     for label, x, y, mat, xo, yo in [
-        ("MAT_MAX", x_max, y_max, float(row_max[mat_col]), x_max_out, y_max_out),
-        ("MAT_MIN", x_min, y_min, float(row_min[mat_col]), x_min_out, y_min_out),
+        ("MAT_MAX_ABS", x_max, y_max, float(row_max[mat_col]), x_max_out, y_max_out),
+        ("MAT_MIN_ABS", x_min, y_min, float(row_min[mat_col]), x_min_out, y_min_out),
     ]:
         results_rows.append({
             "Fall": label,
@@ -111,7 +115,7 @@ def main():
     results = pd.DataFrame(results_rows)
 
     # Speichern
-    out_path = Path(OUT_CSV)
+    out_path = Path(out_csv)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     results.to_csv(out_path, index=False)
 
@@ -119,6 +123,19 @@ def main():
     print(f"  MAX -> ({x_max_out:.6f}, {y_max_out:.6f})")
     print(f"  MIN -> ({x_min_out:.6f}, {y_min_out:.6f})")
     print(f"\nErgebnis gespeichert: {out_path}")
+    print("\n" + "-" * 60 + "\n")
+
+
+def main():
+    if not CSV_PATHS:
+        print("Keine CSVs konfiguriert. Bitte CSV_PATHS anpassen.", file=sys.stderr)
+        sys.exit(1)
+
+    for csv_path, out_csv in CSV_PATHS:
+        try:
+            process_file(csv_path, out_csv)
+        except Exception as exc:
+            print(f"Fehler bei Verarbeitung von {csv_path}: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":
