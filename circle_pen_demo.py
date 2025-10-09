@@ -14,14 +14,32 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# ======= HIER EINSTELLEN =======
-CSV_PATHS = [  # <--- Pfade zu deinen CSVs eintragen
-    ("AD.csv", "result_AD.csv"),
-    ("ID.csv", "result_ID.csv"),
-]
-XY0 = (0.0, 0.0)                       # <--- Mittelpunkt des Kreises (x0, y0) in mm
-RADIAL_OFFSET_MM = 5.0                 # Abstand nach außen in mm
-# =================================
+debugging = True
+
+if debugging is True:
+    # ======= HIER EINSTELLEN =======
+    CSV_PATHS = [  # <--- Pfade zu deinen CSVs eintragen
+        ("AD.csv", "result_AD.csv"),
+        ("ID.csv", "result_ID.csv"),
+    ]
+    XY0 = (0.0, 0.0)                       # <--- Mittelpunkt des Kreises (x0, y0) in mm
+    RADIAL_OFFSET_MM = -5.0                 # Abstand nach außen in mm
+    # =================================
+
+if debugging is False:
+    from cncplugin import GCodeSync as sync
+    from cncplugin import Properties as props
+    from cncplugin import Session as session
+    import cncplugin_helper as cnc
+    from cncplugin import NCController as nc
+    from cncplugin import SprintProbeController as spc
+    import importlib
+    XY0 = (0.0, 0.0)                       # <--- Mittelpunkt des Kreises (x0, y0) in mm
+    RADIAL_OFFSET_MM = -5.0                 # Abstand nach außen in mm
+
+#Main script
+if debugging is False:
+    sync.WaitForGCode()
 
 
 def find_col(df, candidates):
@@ -202,3 +220,23 @@ if __name__ == "__main__":
         if not (is_ad or is_id):
             # Für alle anderen CSVs eine sprechende Ablage ermöglichen.
             LAST_RUN_BY_NAME[Path(csv_path).stem] = entry
+ 
+    ad_new_x = LAST_RUN_BY_NAME['AD']['new_xy']['MAT_MAX_ABS'][0]
+    ad_new_y = LAST_RUN_BY_NAME['AD']['new_xy']['MAT_MAX_ABS'][1]
+
+    id_new_x = LAST_RUN_BY_NAME['ID']['new_xy']['MAT_MAX_ABS'][0]
+    id_new_y = LAST_RUN_BY_NAME['ID']['new_xy']['MAT_MAX_ABS'][1]
+
+    print("ad_new_x:", ad_new_x)
+    print("ad_new_y:", ad_new_y)
+    print("id_new_x:", id_new_x)
+    print("id_new_y:", id_new_y)
+
+########################################################################################################################
+#release the GCode
+if debugging is False:
+    nc.SetNCVariable(970 ,id_new_x )
+    nc.SetNCVariable(971 ,id_new_y )
+    nc.SetNCVariable(972 ,ad_new_x )
+    nc.SetNCVariable(973 ,ad_new_y )
+    sync.ReleaseGCode()
