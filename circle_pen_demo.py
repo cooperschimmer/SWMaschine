@@ -60,6 +60,12 @@ def compute_outward_point(x, y, x0, y0, offset_mm):
     return float(out_xy[0]), float(out_xy[1])
 
 
+ORIGINAL_X_POSITIONS_PER_FILE = {}
+NEW_X_POSITIONS_PER_FILE = {}
+NEW_XY_POSITIONS_PER_FILE = {}
+LAST_RUN_SUMMARY = []
+
+
 def process_file(csv_path: str, out_csv: str):
     df = load_csv_hardcoded(csv_path)
 
@@ -125,18 +131,42 @@ def process_file(csv_path: str, out_csv: str):
     print(f"\nErgebnis gespeichert: {out_path}")
     print("\n" + "-" * 60 + "\n")
 
+    ORIGINAL_X_POSITIONS_PER_FILE[csv_path] = {
+        "MAT_MAX_ABS": x_max,
+        "MAT_MIN_ABS": x_min,
+    }
+    NEW_X_POSITIONS_PER_FILE[csv_path] = {
+        "MAT_MAX_ABS": x_max_out,
+        "MAT_MIN_ABS": x_min_out,
+    }
+    NEW_XY_POSITIONS_PER_FILE[csv_path] = {
+        "MAT_MAX_ABS": (x_max_out, y_max_out),
+        "MAT_MIN_ABS": (x_min_out, y_min_out),
+    }
+
+    return {
+        "csv_path": csv_path,
+        "output_csv": str(out_path),
+        "original_x": ORIGINAL_X_POSITIONS_PER_FILE[csv_path],
+        "new_x": NEW_X_POSITIONS_PER_FILE[csv_path],
+        "new_xy": NEW_XY_POSITIONS_PER_FILE[csv_path],
+    }
+
 
 def main():
     if not CSV_PATHS:
         print("Keine CSVs konfiguriert. Bitte CSV_PATHS anpassen.", file=sys.stderr)
         sys.exit(1)
 
+    summary = []
     for csv_path, out_csv in CSV_PATHS:
         try:
-            process_file(csv_path, out_csv)
+            result = process_file(csv_path, out_csv)
+            summary.append(result)
         except Exception as exc:
             print(f"Fehler bei Verarbeitung von {csv_path}: {exc}", file=sys.stderr)
+    return summary
 
 
 if __name__ == "__main__":
-    main()
+    LAST_RUN_SUMMARY = main()
