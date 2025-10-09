@@ -60,7 +60,12 @@ def compute_outward_point(x, y, x0, y0, offset_mm):
     return float(out_xy[0]), float(out_xy[1])
 
 
+# Enthält die reinen Rückgabewerte aus "process_file" (eine Liste je CSV).
 LAST_RUN_SUMMARY = []
+# Ergänzend dazu ein Dictionary, das die Ergebnisse pro Innen-/Außendurchmesser
+# über leicht ansprechbare Schlüssel bereitstellt. Damit stehen nach dem Skript-
+# Lauf dieselben Informationen sowohl für ID.csv als auch AD.csv zur Verfügung.
+LAST_RUN_BY_NAME = {}
 
 # Globale Variablen für die neuen Positionen der Innen- (ID) und Außendurchmesser (AD)
 # werden am Ende des Skriptlaufs gefüllt. Sie sind standardmäßig auf None gesetzt und
@@ -177,14 +182,23 @@ if __name__ == "__main__":
         max_xy = new_xy.get("MAT_MAX_ABS")
         min_xy = new_xy.get("MAT_MIN_ABS")
 
-        if any(token in csv_name for token in ("ad", "outer", "aussen", "außen")):
+        is_ad = any(token in csv_name for token in ("ad", "outer", "aussen", "außen"))
+        is_id = any(token in csv_name for token in ("id", "inner", "innen"))
+
+        if is_ad:
             if max_xy is not None:
                 AD_NEW_X_MAX, AD_NEW_Y_MAX = map(float, max_xy)
             if min_xy is not None:
                 AD_NEW_X_MIN, AD_NEW_Y_MIN = map(float, min_xy)
+            LAST_RUN_BY_NAME["AD"] = entry
 
-        if any(token in csv_name for token in ("id", "inner", "innen")):
+        if is_id:
             if max_xy is not None:
                 ID_NEW_X_MAX, ID_NEW_Y_MAX = map(float, max_xy)
             if min_xy is not None:
                 ID_NEW_X_MIN, ID_NEW_Y_MIN = map(float, min_xy)
+            LAST_RUN_BY_NAME["ID"] = entry
+
+        if not (is_ad or is_id):
+            # Für alle anderen CSVs eine sprechende Ablage ermöglichen.
+            LAST_RUN_BY_NAME[Path(csv_path).stem] = entry
